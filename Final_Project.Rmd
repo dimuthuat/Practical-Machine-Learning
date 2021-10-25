@@ -1,0 +1,219 @@
+---
+title: "Practical Machine Learning- Final Project"
+author: "Dimuthu Attanayake"
+date: "10/24/2021"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+
+This is the final project report for Practical Machine Learning course, a part of the Data Science Specialization offered by John Hopkins university on Coursera.
+
+The objective of this project is to predict how well individuals performed personal activity, using data from Jawbone Up, Nike FuelBand, and Fitbit devices. The data for the project is from  [here](http://groupware.les.inf.puc-rio.br/har) and consists accelerometer data on the belt, forearm, arm, and dumbell, including both correct and incorrect performance of barbell lifts. The "classe" variable in the data set provides how well the activities are performed. 
+
+In this project, Decision Tree, Random Forest and Gradient Boosted tree models are trained and validated using the data. The best performing model was then used to predict the 20 cases with the test data provided.  
+
+The training [data](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv).
+
+The test [data](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+
+## Preparation of data
+
+Before training and testing the model, the data has to be prepared by exploring, cleaning and pre-processing. 
+
+
+```{r library}
+
+library(caret)
+library(ggplot2)
+library(corrplot)
+library(lattice)
+library(kernlab)
+library(rattle)
+
+```
+
+### Setting the working directory and loading the data
+
+
+```{r loading}
+
+setwd("C:/Users/dimut/desktop/Data Science/Practical Machine Learning")
+testing <- read.csv("pml-testing.csv")
+training <- read.csv("pml-training.csv")
+
+```
+
+### Exploring the data
+
+
+```{r explo}
+
+dim(training)
+dim(testing)
+typeof(training)
+
+```
+
+The training set has 160 variables and 19622 observations, while the test set has 160 variables and 20 observations.
+
+
+### Cleaning the data
+
+During this step, all the unnecessary variables, including the missing values, metadata(which will not affect the outcome of classe), and non-zero variables will be removed. 
+
+
+```{r cleaning}
+
+#Removing the missing values
+
+trainData<- training[, colSums(is.na(training)) == 0]
+testData <- testing[, colSums(is.na(testing)) == 0]
+dim(trainData)
+dim(testData)
+
+#Removing the metadata
+
+trainData <- trainData[,-c(1:7)]
+testData <- testData[,-c(1:7)]
+dim(trainData)
+dim(testData)
+
+#Removing zero covariates
+
+nvz <- nearZeroVar(trainData)
+trainData <- trainData[,-nvz]
+dim(trainData)
+typeof(trainData)
+```
+
+Now the variables of the training set has decreased to 53. 
+
+### Creating a correlation plot of the variables
+
+To understand how the variables correlate to each other, a correlation plot is used.
+
+
+```{r corr, fig.height= 8, fig.width= 8}
+D <- trainData
+D <- as.data.frame(unclass(D))#converting list into factor
+corrPlot <- cor(trainData[, -length(names(trainData))])
+corrplot(corrPlot, method="circle",diag = FALSE, order = "hclust",type = "upper")
+```
+
+## Training the model
+
+Before training the models,"trainData" is split into training and validation data sets. The initial training and testing of the models will be conducted using these two data sets.At this stage, five fold cross validation is utilised to better understand how the model will predict with real world data. Lastly, the "testData" will be kept aside for final testing of the best performing model.  
+
+
+```{r train}
+
+#Splitting train data into train and validation sets
+
+set.seed(100) 
+intrain <- createDataPartition(trainData$classe, p = 0.8, list = FALSE)
+trainData <- trainData[intrain, ]
+validationData <- trainData[-intrain, ]
+dim(trainData)
+dim(validationData)
+
+#Cross validation
+
+cv <- trainControl(method="cv", number=5, verboseIter=F)
+```
+
+Decision Tree, Random Forest and Gradient Boosted Tree models are trained and validated to find out which performs the best with the given data set. 
+
+### 1. Decision Tree
+
+
+```{r tree}
+#Decision tree
+
+set.seed(125)
+modDT <- train(classe ~ ., method = "rpart", data = trainData, trControl = cv)
+fancyRpartPlot(modDT$finalModel) #tree diagram
+```
+
+
+```{r decision}
+
+#Prediction
+
+DT <- predict(modDT, validationData)
+DT_results <- confusionMatrix(DT, factor(validationData$classe))
+DT_results
+```
+
+Since the accuracy of the Desion Tree model is very low (less than 0.5) this is not a suitable model for prediction with this particular dataset.
+
+### 2. Random Forest
+
+
+```{r RF}
+
+#Random forest
+
+set.seed(125)
+modRF <- train(classe~., data=trainData, method="rf", trControl = cv)
+RF <- predict(modRF, validationData)
+RF_Results <- confusionMatrix(RF, factor(validationData$classe))
+RF_Results
+```
+
+As the Random Forest is 100% accurate, this is a very good model for predicting.
+
+### 3. Gradient Boosted Trees
+
+
+```{r GBT}
+
+#Gradient boosted trees
+
+set.seed(125)
+modBT <- train(classe~., data=trainData, method="gbm", trControl = cv, verbose = F)
+BT <- predict(modBT, validationData)
+BT_results <- confusionMatrix(BT, factor(validationData$classe))
+BT_results
+```
+
+Since Gradient Boosted Tree model indicate over 95% accuracy, it is also a very good model for predicting with this particular dataset.
+
+From the above analysis, Random Forest models performs the best with 100% accuracy. Additionally, since the out of sample error is equal to 1- accuracy, it will be zero for the Random Forest model, while that of Desicion Tree model will be the highest.
+
+### RF with test data 
+
+Finally, the test data will be analysed with the Random Forest model(the best performing model), to predict the 20 test cases.
+
+
+```{r final}
+
+RF1 <- predict(modRF, testData)
+RF1
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
